@@ -1,0 +1,6 @@
+# environmental variables
+.env
+.terraform
+
+# volumes
+volume/
