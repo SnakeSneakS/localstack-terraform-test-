@@ -1,6 +1,7 @@
 # environmental variables
 .env
 .terraform
+*.zip
 
 # volumes
 volume/

@@ -1,0 +1,1 @@
+lambdaをデプロイしAPIGatewayで公開するもの
