@@ -5,5 +5,5 @@ variable "endpoint" {
 
 variable "stage" {
   default = "test"
-  description = "stage"
+  description = "apigateway stage"
 }
