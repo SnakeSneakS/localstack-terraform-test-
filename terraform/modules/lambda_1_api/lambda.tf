@@ -41,30 +41,38 @@ resource "aws_lambda_function" "lambda_function" {
     runtime = "nodejs18.x"
 
     environment {
-      variables = {
-        foo = "bar"
-      }
+      variables = var.lambda_env_vars
     }
 }
 
 # api gateway
 resource "aws_api_gateway_rest_api" "api_gw_rest" {
+    count=var.api_gw_rest!=null ? 0:1
     name = "${var.prefix}_api_gateway_${random_pet.a.id}"
     description = "${var.prefix} api gateway"
 }
+
+locals{
+  api_gw_rest = var.api_gw_rest!=null ? var.api_gw_rest : {
+      id            = aws_api_gateway_rest_api.api_gw_rest[0].id
+      execution_arn = aws_api_gateway_rest_api.api_gw_rest[0].execution_arn
+    }
+  api_gw_resource_parent_id = var.api_gw_resource_parent_id !=null ?  var.api_gw_resource_parent_id : aws_api_gateway_rest_api.api_gw_rest[0].root_resource_id
+}
+
 resource "aws_api_gateway_resource" "api_gw_resource" {
-    rest_api_id = aws_api_gateway_rest_api.api_gw_rest.id
-    parent_id   = aws_api_gateway_rest_api.api_gw_rest.root_resource_id
+    rest_api_id = local.api_gw_rest.id
+    parent_id   = local.api_gw_resource_parent_id
     path_part   = var.api_path
 }
 resource "aws_api_gateway_method" "api_gw_method" {
-    rest_api_id = aws_api_gateway_rest_api.api_gw_rest.id
+    rest_api_id = local.api_gw_rest.id
     resource_id   = aws_api_gateway_resource.api_gw_resource.id
-    http_method = "ANY"
-    authorization = "NONE"
+    http_method = var.api_gw_method!="" ? var.api_gw_method : "ANY"
+    authorization = var.api_gw_authorization
 }
 resource "aws_api_gateway_method_response" "options_200" {
-  rest_api_id = aws_api_gateway_rest_api.api_gw_rest.id
+  rest_api_id = local.api_gw_rest.id
   resource_id = aws_api_gateway_resource.api_gw_resource.id
   http_method = aws_api_gateway_method.api_gw_method.http_method
   status_code = "200"
@@ -83,7 +91,7 @@ resource "aws_api_gateway_method_response" "options_200" {
 
 # api gateway and lambda
 resource "aws_api_gateway_integration" "lambda" {
-    rest_api_id = aws_api_gateway_rest_api.api_gw_rest.id
+    rest_api_id = local.api_gw_rest.id
     resource_id = aws_api_gateway_method.api_gw_method.resource_id
     http_method = aws_api_gateway_method.api_gw_method.http_method
     integration_http_method = "ANY"
@@ -101,7 +109,7 @@ resource "aws_api_gateway_deployment" "api_gw_deployment" {
     depends_on = [
         aws_api_gateway_integration.lambda,
     ]
-    rest_api_id = aws_api_gateway_rest_api.api_gw_rest.id
+    rest_api_id = local.api_gw_rest.id
     stage_name = var.stage
 }
 resource "aws_lambda_permission" "api_gw" {
@@ -109,5 +117,5 @@ resource "aws_lambda_permission" "api_gw" {
     action = "lambda:InvokeFunction"
     function_name = aws_lambda_function.lambda_function.function_name
     principal = "apigateway.amazonaws.com"
-    source_arn = "${aws_api_gateway_rest_api.api_gw_rest.execution_arn}/*/*"
+    source_arn = "${local.api_gw_rest.execution_arn}/*/*"
 }
